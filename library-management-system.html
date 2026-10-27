@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library Management System</title>
+<style>
+:root{--g:#14532d;--a:#b45309;--bg:#f6f7f4;--b:#dfe3da;--m:#667064}
+*{box-sizing:border-box}body{margin:0;font-family:Georgia,'Times New Roman',serif;background:var(--bg);color:#1a2118}
+header{background:var(--g);color:#fff;padding:18px 24px}header h1{margin:0;font-size:1.4rem}header small{opacity:.75;font-family:system-ui,sans-serif}
+nav{display:flex;gap:4px;padding:0 24px;background:#fff;border-bottom:1px solid var(--b);overflow:auto}
+nav button{border:0;background:none;padding:14px 16px;font:600 .95rem system-ui,sans-serif;color:var(--m);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav button.on{color:var(--g);border-color:var(--a)}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #f59e0b}
+main{padding:24px;max-width:1050px;margin:auto;font-family:system-ui,sans-serif}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.stat{background:#fff;border:1px solid var(--b);border-radius:10px;padding:14px}.stat span{color:var(--m);font-size:.85rem}.stat b{display:block;font-size:1.7rem;font-family:Georgia,serif}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}input,select,button{font:inherit;padding:9px 11px;border:1px solid #c7cdc2;border-radius:8px;background:#fff}
+.p{background:var(--g);color:#fff;border:0;cursor:pointer;font-weight:600}.row input{flex:1;min-width:140px}
+.tw{background:#fff;border:1px solid var(--b);border-radius:10px;overflow:auto;margin-bottom:18px}table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--b);white-space:nowrap}th{background:#f1f3ee;color:var(--m)}tr:last-child td{border:0}
+.tag{padding:2px 9px;border-radius:99px;font-size:.78rem;font-weight:600}.ok{background:#dcfce7;color:#166534}.no{background:#fee2e2;color:#991b1b}.wn{background:#fef3c7;color:#92400e}
+td button{padding:4px 10px;cursor:pointer}h3{font-family:Georgia,serif;margin:6px 0 10px}.od{background:#fff7ed}.msg{padding:10px 14px;border-radius:8px;background:#ecfdf5;color:#065f46;margin-bottom:12px}.msg.e{background:#fef2f2;color:#991b1b}
+</style></head><body>
+<header><h1>City Public Library</h1><small>Library Management System · Fine Rs 10 per overdue day · Loan period 14 days</small></header>
+<nav id="nv"></nav><main id="mn"></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAY=864e5,iso=d=>new Date(d).toISOString().slice(0,10),today=()=>iso(Date.now()),add=(d,n)=>iso(new Date(d).getTime()+n*DAY),FINE=10,LOAN=14;
+let D;try{D=JSON.parse(localStorage.getItem('lib-v2'))}catch{}if(!D||!D.books)D={books:[],members:[],loans:[]};
+const save=()=>{try{localStorage.setItem('lib-v2',JSON.stringify(D))}catch{}};
+let tab='Dashboard',msg='',err=false;
+const active=()=>D.loans.filter(l=>!l.ret),out=id=>active().filter(l=>l.book===id).length,avail=b=>b.copies-out(b.id);
+const late=l=>Math.max(0,Math.floor((new Date(today())-new Date(l.due))/DAY)),bk=id=>D.books.find(b=>b.id===id),mb=id=>D.members.find(m=>m.id===id);
+const nid=a=>a.reduce((m,x)=>Math.max(m,x.id),0)+1,flash=(m,e)=>{msg=m;err=!!e};
+function view(){
+ $('#nv').innerHTML=['Dashboard','Books','Members','Issue & Return'].map(t=>`<button class="${t===tab?'on':''}" data-t="${t}">${t}</button>`).join('');
+ document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tab=b.dataset.t;msg='';view()});
+ const m=msg?`<div class="msg ${err?'e':''}" role="status">${esc(msg)}</div>`:'';
+ $('#mn').innerHTML=m+({Dashboard:dash,Books:books,Members:members,'Issue & Return':loans})[tab]();bind()}
+function dash(){const a=active(),od=a.filter(l=>late(l)>0),fines=D.loans.reduce((s,l)=>s+(l.fine||0),0)+od.reduce((s,l)=>s+late(l)*FINE,0);
+ const st=[['Titles',D.books.length],['Total copies',D.books.reduce((s,b)=>s+b.copies,0)],['On loan',a.length],['Overdue',od.length],['Fines (Rs)',fines],['Members',D.members.length]];
+ return `<div class="stats">${st.map(x=>`<div class="stat"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('')}</div><h3>Overdue books</h3>`+tbl(['Book','Member','Due','Days late','Fine'],od.map(l=>[esc(bk(l.book).title),esc(mb(l.member).name),l.due,late(l),'Rs '+late(l)*FINE]),'No overdue books.')}
+function tbl(h,r,empty){return `<div class="tw"><table><thead><tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${r.length?r.map(x=>`<tr class="${x.cls||''}">${x.map(c=>`<td>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${h.length}">${empty}</td></tr>`}</tbody></table></div>`}
+function books(){const q=(window.bq||'').toLowerCase();const L=D.books.filter(b=>(b.title+b.author+b.isbn+b.cat).toLowerCase().includes(q));
+ return `<form class="row" id="fb"><input id="bt" placeholder="Title" required><input id="ba" placeholder="Author" required><input id="bi" placeholder="ISBN" required pattern="[0-9Xx-]{10,17}"><input id="bc" placeholder="Category" required><input id="bn" type="number" min="1" value="1" style="max-width:80px" aria-label="Copies"><button class="p">Add book</button></form>
+ <div class="row"><input id="bs" type="search" placeholder="Search title, author, ISBN" value="${esc(window.bq||'')}"></div>`+
+ tbl(['Title','Author','ISBN','Category','Copies','Status',''],L.map(b=>[`<b>${esc(b.title)}</b>`,esc(b.author),esc(b.isbn),esc(b.cat),b.copies,`<span class="tag ${avail(b)?'ok':'no'}">${avail(b)?avail(b)+' available':'All issued'}</span>`,`<button data-rb="${b.id}">Remove</button>`]),'No books found.')}
+function members(){return `<form class="row" id="fm"><input id="mn1" placeholder="Member name" required><input id="me" type="email" placeholder="Email" required><button class="p">Add member</button></form>`+
+ tbl(['ID','Name','Email','Books on loan',''],D.members.map(m=>[m.id,`<b>${esc(m.name)}</b>`,esc(m.email),active().filter(l=>l.member===m.id).length,`<button data-rm="${m.id}">Remove</button>`]),'No members yet.')}
+function loans(){const ab=D.books.filter(b=>avail(b)>0);
+ return `<h3>Issue a book</h3><form class="row" id="fi"><select id="im" required><option value="">Select member</option>${D.members.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select><select id="ib" required><option value="">Select book</option>${ab.map(b=>`<option value="${b.id}">${esc(b.title)} (${avail(b)} left)</option>`).join('')}</select><button class="p">Issue (due in ${LOAN} days)</button></form>
+ <h3>Books currently on loan</h3>`+tbl(['Book','Member','Issued','Due','Fine now',''],active().map(l=>{const r=[esc(bk(l.book).title),esc(mb(l.member).name),l.issued,l.due,late(l)?`<span class="tag no">Rs ${late(l)*FINE}</span>`:'<span class="tag ok">None</span>',`<button class="p" data-r="${l.id}">Return</button>`];if(late(l))r.cls='od';return r}),'Nothing is on loan.')+
+ `<h3>Return history</h3>`+tbl(['Book','Member','Returned','Fine paid'],D.loans.filter(l=>l.ret).slice(-8).reverse().map(l=>[esc(bk(l.book)?.title||'Removed book'),esc(mb(l.member)?.name||'Removed member'),l.ret,'Rs '+l.fine]),'No returns yet.')}
+function bind(){const g=s=>document.querySelector(s);
+ if(g('#bs'))g('#bs').oninput=e=>{window.bq=e.target.value;const p=e.target.selectionStart;view();const n=g('#bs');n.focus();n.setSelectionRange(p,p)};
+ if(g('#fb'))g('#fb').onsubmit=e=>{e.preventDefault();const i=g('#bi').value.trim();if(D.books.some(b=>b.isbn===i))return flash('A book with this ISBN already exists.',1),view();
+  D.books.push({id:nid(D.books),title:g('#bt').value.trim(),author:g('#ba').value.trim(),isbn:i,cat:g('#bc').value.trim(),copies:Math.max(1,+g('#bn').value)});save();flash('Book added.');view()};
+ if(g('#fm'))g('#fm').onsubmit=e=>{e.preventDefault();D.members.push({id:nid(D.members),name:g('#mn1').value.trim(),email:g('#me').value.trim()});save();flash('Member added.');view()};
+ document.querySelectorAll('[data-rb]').forEach(b=>b.onclick=()=>{const id=+b.dataset.rb;if(out(id))return flash('Cannot remove a book that is on loan.',1),view();if(confirm('Remove this book?')){D.books=D.books.filter(x=>x.id!==id);save();flash('Book removed.');view()}});
+ document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const id=+b.dataset.rm;if(active().some(l=>l.member===id))return flash('Member still has books on loan.',1),view();if(confirm('Remove this member?')){D.members=D.members.filter(x=>x.id!==id);save();flash('Member removed.');view()}});
+ if(g('#fi'))g('#fi').onsubmit=e=>{e.preventDefault();const m=+g('#im').value,b=+g('#ib').value;if(active().filter(l=>l.member===m).length>=3)return flash('Limit reached: a member can borrow 3 books at a time.',1),view();
+  D.loans.push({id:nid(D.loans),book:b,member:m,issued:today(),due:add(today(),LOAN),ret:null,fine:0});save();flash('Book issued. Due on '+add(today(),LOAN)+'.');view()};
+ document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{const l=D.loans.find(x=>x.id===+b.dataset.r),f=late(l)*FINE;l.ret=today();l.fine=f;save();flash(f?'Returned late. Collect a fine of Rs '+f+'.':'Book returned on time.',!!f);view()})}
+view();
+</script>
+<script>
+(()=>{const P={"k": "lib", "t": "City Public Library", "c": "#14532d", "bg": "#0f3d22"};
+const AK='auth2-'+P.k,SK='sess-'+P.k,$=s=>document.querySelector(s);
+const st=document.createElement('style');
+st.textContent=`#lgo{position:fixed;inset:0;z-index:9999;background:${P.bg};display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+#lgo[hidden]{display:none}#lgo form{background:#fff;color:#1f2937;width:min(380px,100%);border-radius:16px;padding:28px;display:grid;gap:12px;box-shadow:0 20px 60px #0006}
+#lgo h1{margin:0;font-size:1.4rem}#lgo p{margin:0;color:#6b7280;font-size:.9rem}#lgo label{display:grid;gap:4px;font-size:.82rem;color:#6b7280}
+#lgo input{font:inherit;padding:11px 12px;border:1px solid #d1d5db;border-radius:8px}#lgo input:focus-visible,#lgo button:focus-visible{outline:3px solid #f59e0b}
+#lgo button{font:inherit;font-weight:600;padding:12px;border:0;border-radius:8px;background:${P.c};color:#fff;cursor:pointer}
+#lge{color:#b91c1c;font-size:.85rem;min-height:1.1em}#lgb{position:fixed;left:12px;bottom:12px;z-index:60;font:inherit;font-size:.85rem;padding:7px 12px;border-radius:99px;border:1px solid #0003;background:#fff;color:#111;cursor:pointer;box-shadow:0 2px 8px #0003}`;
+document.head.append(st);
+const o=document.createElement('div');o.id='lgo';o.hidden=true;
+o.innerHTML=`<form id="lgf" autocomplete="on"><h1>${P.t}</h1><p id="lgm"></p>
+<label>Username<input id="lgu" required maxlength="30" autocomplete="username"></label>
+<label>Password<input id="lgp" type="password" required autocomplete="current-password"></label>
+<label id="lgcw">Confirm password<input id="lgc" type="password" minlength="6" autocomplete="new-password"></label>
+<div id="lge" role="alert"></div><button id="lgs"></button></form>`;
+document.body.append(o);
+const lb=document.createElement('button');lb.id='lgb';lb.hidden=true;document.body.append(lb);
+async function h(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch{let x=5381;for(const c of s)x=(x*33^c.charCodeAt(0))>>>0;return 'f'+x}}
+const get=()=>{try{return JSON.parse(localStorage.getItem(AK))}catch{return null}};const acct=async()=>get()||{u:'admin',h:await h('admin:admin123')};
+const lock=on=>[...document.body.children].forEach(e=>{if(e!==o&&e!==lb&&e.tagName!=='SCRIPT'&&e.tagName!=='STYLE'){on?e.setAttribute('inert',''):e.removeAttribute('inert')}});
+function show(){const a=true;o.hidden=false;lb.hidden=true;lock(true);$('#lgf').reset();$('#lge').textContent='';
+ $('#lgm').textContent=a?'Sign in to continue.':'First time here? Create your admin account.';
+ $('#lgs').textContent=a?'Sign in':'Create account';$('#lgcw').style.display=a?'none':'grid';$('#lgc').required=!a;
+ $('#lgp').autocomplete=a?'current-password':'new-password';setTimeout(()=>$('#lgu').focus(),50)}
+function enter(u){try{sessionStorage.setItem(SK,u)}catch{}o.hidden=true;lock(false);lb.hidden=false;lb.textContent='Logout ('+u+')'}
+$('#lgf').onsubmit=async e=>{e.preventDefault();const u=$('#lgu').value.trim().toLowerCase(),p=$('#lgp').value,a=await acct();if(a.u===u&&a.h===await h(u+':'+p))enter(u);else $('#lge').textContent='Wrong username or password.'};
+lb.onclick=()=>{try{sessionStorage.removeItem(SK)}catch{}show()};
+(async()=>{let s=null;try{s=sessionStorage.getItem(SK)}catch{}const a=await acct();if(s&&a.u===s)enter(s);else show()})();
+})();
+</script>
+</body></html>
